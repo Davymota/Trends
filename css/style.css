@@ -1,0 +1,44 @@
+:root {
+  --ink: #e8f2e4;
+  --panel: rgba(12, 22, 16, 0.78);
+  --line: rgba(160, 210, 160, 0.22);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #0a120d; }
+body {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  color: var(--ink);
+  -webkit-font-smoothing: none;
+}
+canvas#game { display: block; width: 100vw; height: 100vh; cursor: grab; }
+canvas#game.dragging { cursor: grabbing; }
+
+#hud, #card, #help {
+  position: fixed;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  backdrop-filter: blur(6px);
+  padding: 12px 14px;
+  font-size: 12px;
+  line-height: 1.5;
+  user-select: none;
+}
+#hud { top: 16px; left: 16px; min-width: 190px; }
+#hud h1 { margin: 0 0 8px; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; opacity: .85; }
+#hud .row { display: flex; justify-content: space-between; gap: 16px; opacity: .9; }
+#hud .row b { color: #b8e986; font-weight: 600; }
+
+#help { bottom: 16px; left: 50%; transform: translateX(-50%); opacity: .7; white-space: nowrap; }
+
+#card { top: 16px; right: 16px; display: flex; gap: 12px; align-items: center; width: 250px; }
+#card[hidden] { display: none; }
+#card canvas { image-rendering: pixelated; background: rgba(0,0,0,.25); border-radius: 8px; }
+#card p { margin: 2px 0 8px; opacity: .75; }
+#card .bar { height: 6px; border-radius: 3px; background: rgba(255,255,255,.12); overflow: hidden; }
+#card .bar i { display: block; height: 100%; background: linear-gradient(90deg, #7fd14b, #d9e94b); transition: width .2s; }
+
+@media (max-width: 620px) {
+  #help { display: none; }
+  #card { top: auto; bottom: 16px; right: 16px; width: 210px; }
+}

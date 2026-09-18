@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Floresta Isométrica</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud">
+  <h1>Floresta Isométrica</h1>
+  <div class="row"><span>Hora</span><b id="clock">06:00</b></div>
+  <div class="row"><span>Animais</span><b id="count">0</b></div>
+  <div class="row"><span>Selecionado</span><b id="sel">—</b></div>
+</div>
+
+<div id="help">
+  arrastar / WASD — mover câmera &nbsp;·&nbsp; roda / +- — zoom &nbsp;·&nbsp; clique — inspecionar animal &nbsp;·&nbsp; T — acelerar tempo &nbsp;·&nbsp; R — nova floresta
+</div>
+
+<div id="card" hidden>
+  <canvas id="portrait" width="96" height="96"></canvas>
+  <div>
+    <b id="cardName"></b>
+    <p id="cardState"></p>
+    <div class="bar"><i id="cardEnergy"></i></div>
+  </div>
+</div>
+
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
