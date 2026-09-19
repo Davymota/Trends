@@ -71,7 +71,7 @@ export class Renderer {
       bottom: cam.y + halfH + TILE_H * 2 + BASE_DEPTH,
     };
 
-    this.drawTiles(world, view, time);
+    this.drawTerrain(world);
     this.drawEntities(world, animals, view, selected, time, cam);
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -101,97 +101,76 @@ export class Renderer {
     ctx.restore();
   }
 
-  drawTiles(world, view, time) {
-    const size = world.size;
-    for (let sum = 0; sum <= (size - 1) * 2; sum++) {
-      const rowY = (sum * TILE_H) / 2;
-      if (rowY < view.top - 240 || rowY > view.bottom + 240) continue;
-      for (let x = Math.max(0, sum - size + 1); x <= Math.min(size - 1, sum); x++) {
-        const y = sum - x;
-        const terrain = world.tiles[world.idx(x, y)];
-        if (terrain === TERRAIN.VOID) continue;
-        const p = toScreen(x, y);
-        if (p.x < view.left - TILE_W || p.x > view.right + TILE_W) continue;
-        this.drawTile(world, x, y, terrain, p, time);
-      }
-    }
-  }
-
-  drawTile(world, gx, gy, terrain, p, time) {
-    const { ctx } = this;
-    const i = world.idx(gx, gy);
-    const hw = TILE_W / 2;
-    const hh = TILE_H / 2;
-    const isWater = terrain === TERRAIN.WATER;
-
-    const lift = world.elev[i] * LEVEL_HEIGHT;
-    // A água não é deslocada verticalmente: qualquer folga abriria uma
-    // fresta do fundo entre ela e a margem. A ondulação fica no tom.
-    const py = p.y - lift;
-
-    // Paredes do "bolo" da ilha, visíveis só na borda voltada para a câmera.
-    const southVoid = !world.isLand(gx, gy + 1) && world.terrainAt(gx, gy + 1) !== TERRAIN.WATER;
-    const eastVoid = !world.isLand(gx + 1, gy) && world.terrainAt(gx + 1, gy) !== TERRAIN.WATER;
-    const lowerS = world.elevAt(gx, gy + 1) < world.elev[i];
-    const lowerE = world.elevAt(gx + 1, gy) < world.elev[i];
-
-    if (southVoid || eastVoid || lowerS || lowerE || isWater) {
-      const drop = southVoid || eastVoid
-        ? BASE_DEPTH + lift
-        : Math.max(LEVEL_HEIGHT, lift - Math.min(world.elevAt(gx, gy + 1), world.elevAt(gx + 1, gy)) * LEVEL_HEIGHT);
-      // Borda externa da ilha é penhasco cinza; degraus internos ficam
-      // apenas um tom abaixo do próprio terreno, para não virar costura.
-      let wallL;
-      let wallR;
-      if (southVoid || eastVoid) {
-        wallL = isWater ? C.cliffWater : terrain === TERRAIN.SAND ? C.cliffSand : C.cliffL;
-        wallR = isWater ? C.cliffWater : terrain === TERRAIN.SAND ? C.cliffSand : C.cliffR;
-      } else {
-        const [tl, td] = TERRAIN_COLORS[terrain];
-        const surface = mix(tl, td, world.shade[i] * 0.7);
-        wallL = mix(surface, '#2a3330', 0.22);
-        wallR = mix(surface, '#2a3330', 0.36);
-      }
-
-      this.fillShape(wallL, () => {
-        ctx.moveTo(p.x - hw, py);
-        ctx.lineTo(p.x, py + hh);
-        ctx.lineTo(p.x, py + hh + drop);
-        ctx.lineTo(p.x - hw, py + drop);
-      });
-      this.fillShape(wallR, () => {
-        ctx.moveTo(p.x + hw, py);
-        ctx.lineTo(p.x, py + hh);
-        ctx.lineTo(p.x, py + hh + drop);
-        ctx.lineTo(p.x + hw, py + drop);
-      });
-    }
-
-    const [light, dark] = TERRAIN_COLORS[terrain];
-    // Ondulação da água: variação de tom, em vez de mover a geometria.
-    const ripple = isWater ? (Math.sin(time.t * 1.1 + (gx + gy) * 0.5) + 1) * 0.16 : 0;
-    this.fillShape(mix(light, dark, world.shade[i] * 0.7 + ripple), () => {
-      ctx.moveTo(p.x, py - hh);
-      ctx.lineTo(p.x + hw, py);
-      ctx.lineTo(p.x, py + hh);
-      ctx.lineTo(p.x - hw, py);
-    });
-  }
-
   /**
-   * Preenche um polígono e o contorna com a mesma cor: o traço de 1px
-   * cobre a fresta de antialiasing que apareceria entre tiles vizinhos.
+   * O terreno é desenhado como silhuetas curvas, não tile a tile: cada
+   * nível de elevação vira uma laje extrudada e cada tipo de terreno,
+   * uma mancha por cima.
    */
-  fillShape(color, path) {
+  drawTerrain(world) {
+    for (const step of world.steps) {
+      const lift = step.level * LEVEL_HEIGHT;
+      const depth = step.level === 0 ? BASE_DEPTH : LEVEL_HEIGHT;
+      this.extrude(step.loops, lift, depth, step.level === 0);
+      this.fillLoops(step.loops, lift, C.grass[0]);
+    }
+
+    for (const patch of world.patches) {
+      const [light, dark] = TERRAIN_COLORS[patch.terrain];
+      this.fillLoops(patch.loops, patch.level * LEVEL_HEIGHT, mix(light, dark, 0.25));
+    }
+  }
+
+  /** Monta um Path2D com todos os laços de uma região já projetados. */
+  path(loops, lift) {
+    const p = new Path2D();
+    for (const loop of loops) {
+      loop.forEach(([gx, gy], i) => {
+        const s = toScreen(gx, gy);
+        if (i === 0) p.moveTo(s.x, s.y - lift);
+        else p.lineTo(s.x, s.y - lift);
+      });
+      p.closePath();
+    }
+    return p;
+  }
+
+  /** `evenodd` faz os laços internos virarem buracos (lagos, clareiras). */
+  fillLoops(loops, lift, color) {
     const { ctx } = this;
-    ctx.beginPath();
-    path();
-    ctx.closePath();
+    const p = this.path(loops, lift);
     ctx.fillStyle = color;
-    ctx.fill();
+    ctx.fill(p, 'evenodd');
     ctx.strokeStyle = color;
     ctx.lineWidth = 1;
-    ctx.stroke();
+    ctx.stroke(p);
+  }
+
+  /** Parede lateral da silhueta, dando espessura à laje. */
+  extrude(loops, lift, depth, outer) {
+    const { ctx } = this;
+    for (const loop of loops) {
+      for (let i = 0; i < loop.length; i++) {
+        const a = toScreen(loop[i][0], loop[i][1]);
+        const b = toScreen(loop[(i + 1) % loop.length][0], loop[(i + 1) % loop.length][1]);
+        const ay = a.y - lift;
+        const by = b.y - lift;
+        // A face voltada para o observador recebe o tom mais claro.
+        const facing = b.x > a.x;
+        ctx.fillStyle = outer
+          ? (facing ? C.cliffL : C.cliffR)
+          : mix(C.grass[1], '#2a3330', facing ? 0.22 : 0.36);
+        ctx.beginPath();
+        ctx.moveTo(a.x, ay);
+        ctx.lineTo(b.x, by);
+        ctx.lineTo(b.x, by + depth);
+        ctx.lineTo(a.x, ay + depth);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = ctx.fillStyle;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+    }
   }
 
   drawEntities(world, animals, view, selected, time, cam) {

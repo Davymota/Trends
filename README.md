@@ -26,6 +26,10 @@ python3 -m http.server 8000
 
 ## O que tem dentro
 
+- **Contornos curvos** — o terreno não é desenhado losango a losango: o
+  contorno de cada região é extraído da grade e arredondado (Chaikin), então a
+  costa, o rio, a trilha e as manchas de pedra saem como curvas contínuas, sem
+  serrilhado de escadinha.
 - **Ilha procedural** — ruído em oitavas recorta uma costa orgânica; lascas de
   terreno soltas são descartadas. Tem praia na beira d'água, mata fechada,
   clareiras de musgo, afloramentos de pedra, um rio com pontes e uma trilha.
@@ -50,11 +54,12 @@ index.html        marcação e HUD
 css/style.css     painéis e tipografia
 src/theme.js      paleta única do jogo
 src/iso.js        projeção isométrica 2:1 e ordenação por profundidade
+src/contour.js    contorno das regiões da grade e suavização por Chaikin
 src/rng.js        PRNG determinístico, ruído de valor e fBm
 src/world.js      geração da ilha, rio, trilha, vegetação e marcos
 src/sprites.js    sprites vetoriais pré-renderizados em canvas offscreen
 src/animals.js    espécies e máquina de estados de comportamento
-src/render.js     desenho dos tiles, sombras, sprites e rótulos
+src/render.js     silhuetas do terreno, sombras, sprites e rótulos
 src/main.js       laço principal, câmera, entrada e HUD
 ```
 

@@ -27,8 +27,8 @@ function frameIsland() {
   cam.x = (b.minX + b.maxX) / 2;
   cam.y = (b.minY + b.maxY) / 2;
   cam.zoom = Math.max(0.35, Math.min(
-    (window.innerWidth - 80) / (b.maxX - b.minX),
-    (window.innerHeight - 110) / (b.maxY - b.minY + 90),
+    (window.innerWidth - 60) / (b.maxX - b.minX),
+    (window.innerHeight - 80) / (b.maxY - b.minY),
   ));
 }
 const time = { t: 0, hour: 7, speed: 1, night: 0 };

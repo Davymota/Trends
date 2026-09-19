@@ -1,6 +1,7 @@
 import { makeRng, makeNoise, fbm } from './rng.js';
 import { C } from './theme.js';
 import { toScreen, TILE_W, TILE_H } from './iso.js';
+import { regionOutlines } from './contour.js';
 
 export const TERRAIN = {
   VOID: 0, // fora da ilha: não é desenhado, o fundo claro aparece
@@ -31,7 +32,6 @@ export class World {
     this.seed = seed;
     this.tiles = new Uint8Array(size * size);
     this.elev = new Uint8Array(size * size);
-    this.shade = new Float32Array(size * size);
     this.props = [];
     this.decals = []; // pontes, barcos: desenhados junto com os props
     this.generate();
@@ -93,7 +93,6 @@ export class World {
 
         this.tiles[i] = t;
         this.elev[i] = h < 0.52 ? 0 : h < 0.63 ? 1 : h < 0.74 ? 2 : 3;
-        this.shade[i] = fbm(grove, x * 0.45, y * 0.45, 2);
       }
     }
 
@@ -103,6 +102,7 @@ export class World {
     this.plant(rng, grove);
     this.pruneIslets();
     this.placeLandmarks(rng);
+    this.buildOutlines();
     this.measureBounds();
   }
 
@@ -145,6 +145,37 @@ export class World {
       for (const i of cells) this.tiles[i] = TERRAIN.VOID;
     }
     this.props = this.props.filter((pr) => this.terrainAt(Math.round(pr.x), Math.round(pr.y)) !== TERRAIN.VOID);
+  }
+
+  /**
+   * Converte a grade em silhuetas curvas, calculadas uma única vez:
+   * um degrau por nível de elevação e uma mancha por tipo de terreno.
+   */
+  buildOutlines() {
+    const { size } = this;
+    const at = (x, y) => (this.inBounds(x, y) ? this.tiles[this.idx(x, y)] : TERRAIN.VOID);
+    const elevAt = (x, y) => (this.inBounds(x, y) ? this.elev[this.idx(x, y)] : 0);
+
+    this.maxElev = 0;
+    for (let i = 0; i < this.elev.length; i++) {
+      if (this.tiles[i] !== TERRAIN.VOID && this.elev[i] > this.maxElev) this.maxElev = this.elev[i];
+    }
+
+    // Degraus: cada nível é uma laje empilhada sobre a anterior.
+    this.steps = [];
+    for (let level = 0; level <= this.maxElev; level++) {
+      const loops = regionOutlines(size, (x, y) => at(x, y) !== TERRAIN.VOID && elevAt(x, y) >= level);
+      if (loops.length) this.steps.push({ level, loops });
+    }
+
+    // Manchas de terreno, separadas por nível para assentarem no degrau certo.
+    this.patches = [];
+    for (const terrain of [TERRAIN.WATER, TERRAIN.SAND, TERRAIN.DIRT, TERRAIN.MOSS, TERRAIN.ROCK]) {
+      for (let level = 0; level <= this.maxElev; level++) {
+        const loops = regionOutlines(size, (x, y) => at(x, y) === terrain && elevAt(x, y) === level);
+        if (loops.length) this.patches.push({ terrain, level, loops });
+      }
+    }
   }
 
   /** Extensão da ilha em pixels de tela, para enquadrar a câmera. */
