@@ -1,23 +1,38 @@
 import { TILE_W, TILE_H, toScreen, toGrid } from './iso.js';
-import { TERRAIN, TERRAIN_COLORS, LEVEL_HEIGHT } from './world.js';
-import { props as propArt, shadow } from './sprites.js';
+import { TERRAIN, TERRAIN_COLORS, LEVEL_HEIGHT, BASE_DEPTH } from './world.js';
+import { props as propArt, bridge, boat, shadow, cloud } from './sprites.js';
+import { C } from './theme.js';
 
-/** Escurece/clareia uma cor hex por um fator. */
-function shade(hex, amount) {
-  const n = parseInt(hex.slice(1), 16);
-  const clamp = (v) => Math.max(0, Math.min(255, Math.round(v)));
-  const r = clamp(((n >> 16) & 255) * (1 + amount));
-  const g = clamp(((n >> 8) & 255) * (1 + amount));
-  const b = clamp((n & 255) * (1 + amount));
-  return `rgb(${r},${g},${b})`;
+const ANIMAL_SCALE = 1.3; // animais são os personagens: ficam acima da escala do cenário
+
+/** Lê '#rrggbb' ou 'rgb(r,g,b)' como [r, g, b]. */
+function rgb(color) {
+  if (color[0] === '#') {
+    const n = parseInt(color.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+  return color.match(/\d+/g).map(Number);
+}
+
+/** Mistura duas cores — usada na variação de tom de cada tile e parede. */
+function mix(a, b, t) {
+  const pa = rgb(a);
+  const pb = rgb(b);
+  const ch = (i) => Math.round(pa[i] * (1 - t) + pb[i] * t);
+  return `rgb(${ch(0)},${ch(1)},${ch(2)})`;
 }
 
 export class Renderer {
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
-    this.ctx.imageSmoothingEnabled = false;
     this.dpr = 1;
+    this.clouds = Array.from({ length: 7 }, (_, i) => ({
+      x: (i * 271) % 1600,
+      y: 60 + ((i * 137) % 380),
+      s: 0.7 + ((i * 53) % 60) / 100,
+      v: 4 + (i % 3) * 2,
+    }));
     this.resize();
   }
 
@@ -25,7 +40,6 @@ export class Renderer {
     this.dpr = Math.min(window.devicePixelRatio || 1, 2);
     this.canvas.width = Math.floor(window.innerWidth * this.dpr);
     this.canvas.height = Math.floor(window.innerHeight * this.dpr);
-    this.ctx.imageSmoothingEnabled = false;
   }
 
   /** Coordenada de tela (CSS px) -> tile do mundo. */
@@ -37,211 +51,246 @@ export class Renderer {
 
   draw(world, animals, cam, time, selected) {
     const { ctx } = this;
-    const w = this.canvas.width;
-    const h = this.canvas.height;
-
-    const night = time.night;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    this.paintSky(ctx, w, h, night);
+    ctx.fillStyle = C.bg;
+    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    this.drawClouds(time);
+
     ctx.translate(window.innerWidth / 2, window.innerHeight / 2);
     ctx.scale(cam.zoom, cam.zoom);
     ctx.translate(-cam.x, -cam.y);
 
-    // Retângulo visível em pixels de mundo, com folga para sprites altos.
     const halfW = window.innerWidth / 2 / cam.zoom;
     const halfH = window.innerHeight / 2 / cam.zoom;
     const view = {
       left: cam.x - halfW - TILE_W,
       right: cam.x + halfW + TILE_W,
-      top: cam.y - halfH - 140,
-      bottom: cam.y + halfH + TILE_H * 2,
+      top: cam.y - halfH - 160,
+      bottom: cam.y + halfH + TILE_H * 2 + BASE_DEPTH,
     };
 
     this.drawTiles(world, view, time);
-    this.drawEntities(world, animals, view, selected, time);
+    this.drawEntities(world, animals, view, selected, time, cam);
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    this.paintNight(ctx, w, h, night);
-    this.paintVignette(ctx, w, h);
+    this.paintDusk(time.night);
   }
 
-  paintSky(ctx, w, h, night) {
-    const day = ['#7fc6d8', '#bfe3d0'];
-    const dusk = ['#2a3f5c', '#5b4468'];
-    const dark = ['#0a1220', '#101c22'];
-    const pick = (a, b, t) => {
-      const grad = ctx.createLinearGradient(0, 0, 0, h);
-      grad.addColorStop(0, mix(a[0], b[0], t));
-      grad.addColorStop(1, mix(a[1], b[1], t));
-      return grad;
-    };
-    const grad = night < 0.5
-      ? pick(day, dusk, night / 0.5)
-      : pick(dusk, dark, (night - 0.5) / 0.5);
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, w, h);
+  drawClouds(time) {
+    const { ctx } = this;
+    const img = cloud();
+    const w = window.innerWidth + 200;
+    for (const c of this.clouds) {
+      const x = ((c.x + time.t * c.v) % w) - 100;
+      ctx.globalAlpha = 0.85;
+      ctx.drawImage(img, x, c.y, img.logicalW * c.s, img.logicalH * c.s);
+    }
+    ctx.globalAlpha = 1;
   }
 
-  paintNight(ctx, w, h, night) {
+  /** Anoitecer discreto: um véu azulado por cima, sem escurecer demais. */
+  paintDusk(night) {
     if (night <= 0.02) return;
+    const { ctx } = this;
     ctx.save();
     ctx.globalCompositeOperation = 'multiply';
-    const t = night;
-    ctx.fillStyle = `rgba(${Math.round(90 - 60 * t)}, ${Math.round(120 - 70 * t)}, ${Math.round(190 - 60 * t)}, ${0.55 * t})`;
-    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = `rgba(150, 175, 215, ${0.42 * night})`;
+    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     ctx.restore();
   }
 
-  paintVignette(ctx, w, h) {
-    const g = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35, w / 2, h / 2, Math.max(w, h) * 0.75);
-    g.addColorStop(0, 'rgba(0,0,0,0)');
-    g.addColorStop(1, 'rgba(0,0,0,0.45)');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, w, h);
-  }
-
   drawTiles(world, view, time) {
-    const { ctx } = this;
     const size = world.size;
-
     for (let sum = 0; sum <= (size - 1) * 2; sum++) {
-      const yWorld = (sum * TILE_H) / 2;
-      if (yWorld < view.top - 200 || yWorld > view.bottom + 200) continue;
-
+      const rowY = (sum * TILE_H) / 2;
+      if (rowY < view.top - 240 || rowY > view.bottom + 240) continue;
       for (let x = Math.max(0, sum - size + 1); x <= Math.min(size - 1, sum); x++) {
         const y = sum - x;
+        const terrain = world.tiles[world.idx(x, y)];
+        if (terrain === TERRAIN.VOID) continue;
         const p = toScreen(x, y);
         if (p.x < view.left - TILE_W || p.x > view.right + TILE_W) continue;
-
-        const i = world.idx(x, y);
-        const terrain = world.tiles[i];
-        const lift = world.elev[i] * LEVEL_HEIGHT;
-        this.drawTile(ctx, p.x, p.y - lift, terrain, world, x, y, lift, time);
+        this.drawTile(world, x, y, terrain, p, time);
       }
     }
   }
 
-  drawTile(ctx, px, py, terrain, world, gx, gy, lift, time) {
-    const [top, sideL, sideR] = TERRAIN_COLORS[terrain];
+  drawTile(world, gx, gy, terrain, p, time) {
+    const { ctx } = this;
+    const i = world.idx(gx, gy);
     const hw = TILE_W / 2;
     const hh = TILE_H / 2;
+    const isWater = terrain === TERRAIN.WATER;
 
-    let surfaceY = py;
-    if (terrain === TERRAIN.WATER) {
-      // Ondulação suave só na água.
-      surfaceY += Math.sin(time.t * 1.6 + (gx + gy) * 0.55) * 1.6;
-    }
+    const lift = world.elev[i] * LEVEL_HEIGHT;
+    // A água não é deslocada verticalmente: qualquer folga abriria uma
+    // fresta do fundo entre ela e a margem. A ondulação fica no tom.
+    const py = p.y - lift;
 
-    // Faces laterais, dando volume ao degrau.
-    const drop = lift + TILE_H;
-    if (lift > 0 || terrain === TERRAIN.WATER) {
-      ctx.fillStyle = sideL;
-      ctx.beginPath();
-      ctx.moveTo(px - hw, surfaceY);
-      ctx.lineTo(px, surfaceY + hh);
-      ctx.lineTo(px, surfaceY + hh + drop);
-      ctx.lineTo(px - hw, surfaceY + drop);
-      ctx.closePath();
-      ctx.fill();
+    // Paredes do "bolo" da ilha, visíveis só na borda voltada para a câmera.
+    const southVoid = !world.isLand(gx, gy + 1) && world.terrainAt(gx, gy + 1) !== TERRAIN.WATER;
+    const eastVoid = !world.isLand(gx + 1, gy) && world.terrainAt(gx + 1, gy) !== TERRAIN.WATER;
+    const lowerS = world.elevAt(gx, gy + 1) < world.elev[i];
+    const lowerE = world.elevAt(gx + 1, gy) < world.elev[i];
 
-      ctx.fillStyle = sideR;
-      ctx.beginPath();
-      ctx.moveTo(px + hw, surfaceY);
-      ctx.lineTo(px, surfaceY + hh);
-      ctx.lineTo(px, surfaceY + hh + drop);
-      ctx.lineTo(px + hw, surfaceY + drop);
-      ctx.closePath();
-      ctx.fill();
-    }
-
-    // Topo do losango, com variação sutil de tom por tile.
-    ctx.fillStyle = shade(top, world.tint[world.idx(gx, gy)]);
-    ctx.beginPath();
-    ctx.moveTo(px, surfaceY - hh);
-    ctx.lineTo(px + hw, surfaceY);
-    ctx.lineTo(px, surfaceY + hh);
-    ctx.lineTo(px - hw, surfaceY);
-    ctx.closePath();
-    ctx.fill();
-
-    if (terrain === TERRAIN.WATER) {
-      const glint = (Math.sin(time.t * 2 + gx * 1.7 - gy * 0.9) + 1) / 2;
-      if (glint > 0.85) {
-        ctx.fillStyle = 'rgba(210, 240, 255, 0.35)';
-        ctx.fillRect(px - 6, surfaceY - 1, 12, 2);
+    if (southVoid || eastVoid || lowerS || lowerE || isWater) {
+      const drop = southVoid || eastVoid
+        ? BASE_DEPTH + lift
+        : Math.max(LEVEL_HEIGHT, lift - Math.min(world.elevAt(gx, gy + 1), world.elevAt(gx + 1, gy)) * LEVEL_HEIGHT);
+      // Borda externa da ilha é penhasco cinza; degraus internos ficam
+      // apenas um tom abaixo do próprio terreno, para não virar costura.
+      let wallL;
+      let wallR;
+      if (southVoid || eastVoid) {
+        wallL = isWater ? C.cliffWater : terrain === TERRAIN.SAND ? C.cliffSand : C.cliffL;
+        wallR = isWater ? C.cliffWater : terrain === TERRAIN.SAND ? C.cliffSand : C.cliffR;
+      } else {
+        const [tl, td] = TERRAIN_COLORS[terrain];
+        const surface = mix(tl, td, world.shade[i] * 0.7);
+        wallL = mix(surface, '#2a3330', 0.22);
+        wallR = mix(surface, '#2a3330', 0.36);
       }
+
+      this.fillShape(wallL, () => {
+        ctx.moveTo(p.x - hw, py);
+        ctx.lineTo(p.x, py + hh);
+        ctx.lineTo(p.x, py + hh + drop);
+        ctx.lineTo(p.x - hw, py + drop);
+      });
+      this.fillShape(wallR, () => {
+        ctx.moveTo(p.x + hw, py);
+        ctx.lineTo(p.x, py + hh);
+        ctx.lineTo(p.x, py + hh + drop);
+        ctx.lineTo(p.x + hw, py + drop);
+      });
     }
+
+    const [light, dark] = TERRAIN_COLORS[terrain];
+    // Ondulação da água: variação de tom, em vez de mover a geometria.
+    const ripple = isWater ? (Math.sin(time.t * 1.1 + (gx + gy) * 0.5) + 1) * 0.16 : 0;
+    this.fillShape(mix(light, dark, world.shade[i] * 0.7 + ripple), () => {
+      ctx.moveTo(p.x, py - hh);
+      ctx.lineTo(p.x + hw, py);
+      ctx.lineTo(p.x, py + hh);
+      ctx.lineTo(p.x - hw, py);
+    });
   }
 
-  drawEntities(world, animals, view, selected, time) {
+  /**
+   * Preenche um polígono e o contorna com a mesma cor: o traço de 1px
+   * cobre a fresta de antialiasing que apareceria entre tiles vizinhos.
+   */
+  fillShape(color, path) {
+    const { ctx } = this;
+    ctx.beginPath();
+    path();
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  drawEntities(world, animals, view, selected, time, cam) {
     const { ctx } = this;
     const items = [];
 
-    for (const prop of world.props) {
-      const p = toScreen(prop.x, prop.y);
-      const lift = world.elevAt(Math.round(prop.x), Math.round(prop.y)) * LEVEL_HEIGHT;
-      if (p.x < view.left - 80 || p.x > view.right + 80) continue;
-      if (p.y - lift < view.top - 200 || p.y - lift > view.bottom + 80) continue;
-      items.push({ depth: prop.x + prop.y, kind: 'prop', prop, px: p.x, py: p.y - lift });
-    }
+    const push = (depth, obj) => {
+      const p = toScreen(obj.x, obj.y);
+      const lift = world.elevAt(Math.round(obj.x), Math.round(obj.y)) * LEVEL_HEIGHT;
+      const py = p.y - lift;
+      if (p.x < view.left - 100 || p.x > view.right + 100) return;
+      if (py < view.top - 220 || py > view.bottom + 100) return;
+      items.push({ depth, px: p.x, py, ...obj });
+    };
 
-    for (const a of animals) {
-      const p = toScreen(a.x, a.y);
-      const lift = world.elevAt(Math.round(a.x), Math.round(a.y)) * LEVEL_HEIGHT;
-      if (p.x < view.left - 80 || p.x > view.right + 80) continue;
-      if (p.y - lift < view.top - 200 || p.y - lift > view.bottom + 80) continue;
-      items.push({ depth: a.x + a.y + 0.001, kind: 'animal', animal: a, px: p.x, py: p.y - lift });
-    }
+    for (const prop of world.props) push(prop.x + prop.y, { ...prop, type: 'prop' });
+    for (const d of world.decals) push(d.x + d.y + 0.4, { ...d, type: d.kind });
+    for (const a of animals) push(a.x + a.y + 0.5, { x: a.x, y: a.y, type: 'animal', animal: a });
 
     items.sort((m, n) => m.depth - n.depth);
 
     const shadowImg = shadow();
     for (const item of items) {
-      if (item.kind === 'prop') {
-        const img = propArt[item.prop.kind]();
-        ctx.drawImage(shadowImg, item.px - img.width * 0.28, item.py - 6, img.width * 0.56, img.width * 0.28);
-        ctx.drawImage(img, Math.round(item.px - img.width / 2), Math.round(item.py - img.height + 6));
-      } else {
-        const a = item.animal;
-        const img = a.sprite();
-        const hover = a.hover;
-        ctx.globalAlpha = hover ? 0.5 : 1;
-        ctx.drawImage(shadowImg, item.px - 18, item.py - 8, 36, 16);
-        ctx.globalAlpha = 1;
-
-        const bob = a.state === 'rest' ? 0 : Math.abs(Math.sin(a.bob)) * 1.5;
-        const dy = item.py - img.height - hover - bob + 4;
-
-        if (a === selected) {
-          ctx.strokeStyle = 'rgba(216, 245, 120, 0.9)';
-          ctx.lineWidth = 1.5;
-          ctx.beginPath();
-          ctx.ellipse(item.px, item.py - 2, 20 + Math.sin(time.t * 4) * 2, 10, 0, 0, Math.PI * 2);
-          ctx.stroke();
-        }
-
-        ctx.drawImage(img, Math.round(item.px - img.width / 2), Math.round(dy));
-
-        if (a.state === 'rest') this.drawSleep(ctx, item.px + 10, dy - 4, time.t);
-      }
+      if (item.type === 'prop') this.drawProp(item, shadowImg);
+      else if (item.type === 'bridge') this.drawSprite(bridge(), item.px, item.py + 16);
+      else if (item.type === 'boat') {
+        this.drawSprite(boat(), item.px, item.py + 12 + Math.sin(time.t * 1.3 + item.bob) * 1.5);
+      } else this.drawAnimal(item, shadowImg, selected, time, cam);
     }
   }
 
-  drawSleep(ctx, x, y, t) {
+  /** Blita um sprite com a âncora no pé central. */
+  drawSprite(img, cx, footY, scale = 1) {
+    const w = img.logicalW * scale;
+    const h = img.logicalH * scale;
+    this.ctx.drawImage(img, cx - w / 2, footY - h, w, h);
+  }
+
+  drawProp(item, shadowImg) {
+    const img = propArt[item.kind]();
+    const r = img.logicalW * 0.34;
+    this.ctx.drawImage(shadowImg, item.px - r, item.py - r * 0.5, r * 2, r);
+    this.drawSprite(img, item.px, item.py + 4);
+  }
+
+  drawAnimal(item, shadowImg, selected, time, cam) {
+    const { ctx } = this;
+    const a = item.animal;
+    const img = a.sprite();
+    const hover = a.hover;
+    const bob = a.state === 'rest' ? 0 : Math.abs(Math.sin(a.bob)) * 1.2;
+    const footY = item.py + 3 - hover - bob;
+
+    ctx.drawImage(shadowImg, item.px - 15, item.py - 4.5, 30, 13);
+
+    if (a === selected) {
+      ctx.strokeStyle = C.ink;
+      ctx.globalAlpha = 0.55;
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.ellipse(item.px, item.py + 2, 19 + Math.sin(time.t * 3) * 1.5, 9, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    this.drawSprite(img, item.px, footY, ANIMAL_SCALE);
+
+    const top = footY - img.logicalH * ANIMAL_SCALE;
+    // Rótulos em pílula, como na referência — somem quando a câmera afasta.
+    const labelAlpha = a === selected ? 1 : Math.min(1, Math.max(0, (cam.zoom - 0.5) / 0.35)) * 0.9;
+    if (labelAlpha > 0.03) this.drawPill(item.px, top - 6, a.def.name, labelAlpha);
+    if (a.state === 'rest') this.drawSleep(item.px + img.logicalW * 0.45, top, time.t);
+  }
+
+  drawPill(cx, baseY, text, alpha) {
+    const { ctx } = this;
     ctx.save();
-    ctx.globalAlpha = 0.55 + Math.sin(t * 2) * 0.25;
-    ctx.fillStyle = '#e8f2e4';
-    ctx.font = '10px ui-monospace, monospace';
-    ctx.fillText('z', x, y - (t * 6) % 10);
+    ctx.globalAlpha = alpha;
+    ctx.font = '600 9px ui-sans-serif, system-ui, -apple-system, sans-serif';
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'center';
+    const w = ctx.measureText(text).width + 14;
+    const h = 14;
+    ctx.fillStyle = C.label;
+    ctx.beginPath();
+    ctx.roundRect(cx - w / 2, baseY - h, w, h, h / 2);
+    ctx.fill();
+    ctx.fillStyle = C.labelText;
+    ctx.fillText(text, cx, baseY - h / 2 + 0.5);
     ctx.restore();
   }
-}
 
-function mix(a, b, t) {
-  const pa = parseInt(a.slice(1), 16);
-  const pb = parseInt(b.slice(1), 16);
-  const ch = (sh) => Math.round((((pa >> sh) & 255) * (1 - t)) + (((pb >> sh) & 255) * t));
-  return `rgb(${ch(16)},${ch(8)},${ch(0)})`;
+  drawSleep(x, y, t) {
+    const { ctx } = this;
+    ctx.save();
+    ctx.globalAlpha = 0.5 + Math.sin(t * 2) * 0.25;
+    ctx.fillStyle = C.ink;
+    ctx.font = '600 9px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillText('z', x, y - ((t * 6) % 12));
+    ctx.restore();
+  }
 }

@@ -19,7 +19,18 @@ const els = {
   portrait: document.getElementById('portrait'),
 };
 
-const cam = { x: 0, y: 0, zoom: 1.2 };
+const cam = { x: 0, y: 0, zoom: 1 };
+
+/** Enquadra a ilha inteira, usando a extensão real do terreno em tela. */
+function frameIsland() {
+  const b = world.bounds;
+  cam.x = (b.minX + b.maxX) / 2;
+  cam.y = (b.minY + b.maxY) / 2;
+  cam.zoom = Math.max(0.35, Math.min(
+    (window.innerWidth - 80) / (b.maxX - b.minX),
+    (window.innerHeight - 110) / (b.maxY - b.minY + 90),
+  ));
+}
 const time = { t: 0, hour: 7, speed: 1, night: 0 };
 
 let world;
@@ -31,9 +42,7 @@ function newForest(seed = (Math.random() * 65535) | 0) {
   world = new World(46, seed);
   animals = populate(world, makeRng(seed ^ 0xabcd));
   selected = null;
-  const center = toScreen(world.size / 2, world.size / 2);
-  cam.x = center.x;
-  cam.y = center.y;
+  frameIsland();
   els.count.textContent = String(animals.length);
   els.card.hidden = true;
   els.sel.textContent = '—';
@@ -120,9 +129,9 @@ function drawPortrait(animal) {
   g.imageSmoothingEnabled = false;
   g.clearRect(0, 0, 96, 96);
   const img = animalFrames(animal.species).right[0];
-  const scale = Math.min(88 / img.width, 88 / img.height);
-  const w = img.width * scale;
-  const h = img.height * scale;
+  const scale = Math.min(84 / img.logicalW, 84 / img.logicalH);
+  const w = img.logicalW * scale;
+  const h = img.logicalH * scale;
   g.drawImage(img, (96 - w) / 2, (96 - h) / 2, w, h);
 }
 

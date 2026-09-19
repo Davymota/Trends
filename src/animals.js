@@ -2,10 +2,10 @@ import { animalFrames } from './sprites.js';
 import { TERRAIN } from './world.js';
 
 export const SPECIES = {
-  coelho: { name: 'Coelho', speed: 2.4, shy: 6.0, herd: 3, count: 10, active: 'dia', diet: 'ervas' },
+  coelho: { name: 'Coelho', speed: 2.4, shy: 6.0, herd: 3, count: 6, active: 'dia', diet: 'ervas' },
   raposa: { name: 'Raposa', speed: 2.0, shy: 3.5, herd: 1, count: 4, active: 'crepúsculo', diet: 'caça' },
-  veado: { name: 'Veado', speed: 1.7, shy: 7.5, herd: 4, count: 6, active: 'dia', diet: 'folhas' },
-  javali: { name: 'Javali', speed: 1.4, shy: 2.5, herd: 2, count: 5, active: 'noite', diet: 'raízes' },
+  veado: { name: 'Veado', speed: 1.7, shy: 7.5, herd: 4, count: 5, active: 'dia', diet: 'folhas' },
+  javali: { name: 'Javali', speed: 1.4, shy: 2.5, herd: 2, count: 4, active: 'noite', diet: 'raízes' },
   coruja: { name: 'Coruja', speed: 2.8, shy: 5.0, herd: 1, count: 3, active: 'noite', diet: 'insetos' },
 };
 
@@ -168,8 +168,8 @@ export class Animal {
     const screenDx = dx - dy;
     if (Math.abs(screenDx) > 0.05) this.dir = screenDx > 0 ? 1 : -1;
 
-    this.frameTime += dt * speed * 2.6;
-    this.frame = Math.floor(this.frameTime) % 2;
+    this.frameTime += dt * speed * 3.4;
+    this.frame = Math.floor(this.frameTime) % 4;
   }
 
   label() {
