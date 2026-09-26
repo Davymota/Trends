@@ -61,6 +61,7 @@ src/sprites.js    sprites vetoriais pré-renderizados em canvas offscreen
 src/animals.js    espécies e máquina de estados de comportamento
 src/render.js     silhuetas do terreno, sombras, sprites e rótulos
 src/main.js       laço principal, câmera, entrada e HUD
+runway/           scripts para gerar imagens e vídeos com a Runway API (veja runway/README.md)
 ```
 
 Nenhum asset externo: rodar offline basta.

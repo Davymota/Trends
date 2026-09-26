@@ -1,2 +1,5 @@
 node_modules/
 .DS_Store
+
+runway/.env
+runway/out/

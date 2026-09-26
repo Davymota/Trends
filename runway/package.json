@@ -1,0 +1,16 @@
+{
+  "name": "trends-runway",
+  "private": true,
+  "type": "module",
+  "description": "Scripts para gerar imagens e vídeos com a Runway API a partir deste projeto",
+  "engines": { "node": ">=22.9" },
+  "scripts": {
+    "credits": "node --env-file-if-exists=.env scripts/credits.mjs",
+    "image": "node --env-file-if-exists=.env scripts/text-to-image.mjs",
+    "video": "node --env-file-if-exists=.env scripts/image-to-video.mjs",
+    "route": "node --env-file-if-exists=.env scripts/route-video.mjs"
+  },
+  "dependencies": {
+    "@runwayml/sdk": "^4.20.1"
+  }
+}
