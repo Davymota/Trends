@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sabores da China</title>
+<style>
+  :root { --bg:#fbf6ee; --fg:#231a14; --muted:#6b5b50; --card:#fff; --accent:#b3261e; --line:#e8dccb; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#17120f; --fg:#f4ebe0; --muted:#b4a698; --card:#221b16; --accent:#ff6b5e; --line:#3a2f27; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  header { padding:32px 16px 8px; max-width:1100px; margin:0 auto; }
+  h1 { margin:0 0 4px; font-size:clamp(1.8rem,5vw,2.8rem); }
+  header p { margin:0; color:var(--muted); }
+  nav { position:sticky; top:0; z-index:5; background:var(--bg); border-bottom:1px solid var(--line); }
+  nav div { max-width:1100px; margin:0 auto; padding:10px 16px; display:flex; gap:8px; overflow-x:auto; }
+  nav a { white-space:nowrap; text-decoration:none; color:var(--fg); border:1px solid var(--line); border-radius:999px; padding:6px 14px; font-size:.9rem; }
+  nav a:hover { border-color:var(--accent); color:var(--accent); }
+  main { max-width:1100px; margin:0 auto; padding:0 16px 48px; }
+  section.city { padding-top:32px; }
+  section.city > h2 { margin:0; font-size:1.6rem; border-left:5px solid var(--accent); padding-left:12px; }
+  section.city > p.sub { margin:4px 0 16px 17px; color:var(--muted); }
+  .dish { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:16px; }
+  .dish h3 { margin:0; font-size:1.15rem; }
+  .dish h3 small { color:var(--muted); font-weight:400; margin-left:6px; }
+  .dish p { margin:6px 0 12px; }
+  .photos { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+  @media (max-width:640px) { .photos { grid-template-columns:repeat(2,1fr); } }
+  figure { margin:0; }
+  figure a { display:block; }
+  figure img { width:100%; aspect-ratio:1; object-fit:cover; border-radius:8px; background:var(--line); display:block; }
+  figcaption { font-size:.68rem; color:var(--muted); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ph { aspect-ratio:1; border-radius:8px; background:var(--line); }
+  .note { color:var(--muted); font-size:.85rem; }
+  footer { max-width:1100px; margin:0 auto; padding:0 16px 40px; color:var(--muted); font-size:.85rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Sabores da China</h1>
+  <p>Top 6 pratos de 6 destinos, cada um com 4 fotos reais do Wikimedia Commons.</p>
+</header>
+<nav><div id="nav"></div></nav>
+<main id="app"></main>
+<footer>
+  As fotos vêm do <a href="https://commons.wikimedia.org" target="_blank" rel="noopener">Wikimedia Commons</a> em tempo real,
+  com licenças abertas. Clique na foto para ver o autor e a licença. A busca é automática, então
+  uma foto ocasional pode não ser do prato certo.
+</footer>
+
+<script>
+const PLACES = [
+  { id:"pequim", name:"Pequim", sub:"Cozinha imperial, trigo e cordeiro", dishes:[
+    { zh:"北京烤鸭", py:"Běijīng kǎoyā", pt:"Pato laqueado", q:"Peking duck", d:"Pato assado com pele crocante, servido em panquecas finas com cebolinha, pepino e molho hoisin. O prato mais famoso da cidade." },
+    { zh:"炸酱面", py:"zhájiàng miàn", pt:"Macarrão com molho de soja frito", q:"Zhajiangmian", d:"Macarrão grosso coberto com pasta de soja fermentada refogada com carne de porco e legumes crus fatiados." },
+    { zh:"饺子", py:"jiǎozi", pt:"Dumplings", q:"Jiaozi dumplings Beijing", d:"Massa recheada de porco e acelga ou cordeiro, cozida na água. É o prato tradicional do Ano Novo chinês." },
+    { zh:"煎饼", py:"jiānbing", pt:"Crepe de rua", q:"Jianbing", d:"Crepe de trigo e feijão-mungo com ovo, molho e uma folha crocante dentro. Café da manhã clássico de rua." },
+    { zh:"冰糖葫芦", py:"bīngtáng húlu", pt:"Frutas caramelizadas no espeto", q:"Tanghulu", d:"Espetos de espinheiro-chinês (ou morango, uva) cobertos com calda de açúcar crocante. Lanche típico do inverno." },
+    { zh:"涮羊肉", py:"shuàn yángròu", pt:"Hotpot de cordeiro", q:"Beijing lamb hot pot", d:"Fatias finas de cordeiro mergulhadas em caldo fervente e comidas com molho de gergelim." }
+  ]},
+  { id:"xangai", name:"Xangai", sub:"Sabores adocicados e frutos do mar do delta do Yangtzé", dishes:[
+    { zh:"小笼包", py:"xiǎolóngbāo", pt:"Pastel de sopa no vapor", q:"Xiaolongbao", d:"Trouxinha de massa fina recheada de porco e caldo quente. Morde-se com cuidado e toma-se a sopa dentro." },
+    { zh:"生煎包", py:"shēngjiānbāo", pt:"Pão frito recheado", q:"Shengjianbao", d:"Pãozinho de massa fofa, recheio de porco e sopa, com fundo dourado e crocante e gergelim por cima." },
+    { zh:"红烧肉", py:"hóngshāo ròu", pt:"Barriga de porco braseada", q:"Red braised pork belly", d:"Cubos de barriga cozidos devagar com molho de soja, açúcar e vinho de arroz, macios e brilhantes." },
+    { zh:"大闸蟹", py:"dàzháxiè", pt:"Caranguejo peludo", q:"Shanghai hairy crab", d:"Caranguejo de água doce do lago Yangcheng, famoso no outono pelas ovas e pelo sabor delicado." },
+    { zh:"葱油拌面", py:"cōngyóu bànmiàn", pt:"Macarrão com óleo de cebolinha", q:"Scallion oil noodles", d:"Macarrão simples, temperado com óleo aromático de cebolinha frita e soja. Prato caseiro de Xangai." },
+    { zh:"上海馄饨", py:"Shànghǎi húntun", pt:"Wontons de Xangai", q:"Shanghai wonton soup", d:"Wontons de massa fina com recheio de porco e legumes, servidos em caldo claro com alga e ovo." }
+  ]},
+  { id:"shenzhen", name:"Shenzhen", sub:"Cantonesa e de Chaoshan, com muito dim sum", dishes:[
+    { zh:"虾饺", py:"xiājiǎo", pt:"Dumpling de camarão", q:"Har gow", d:"Dumpling translúcido no vapor com camarões inteiros. Um dos clássicos do dim sum cantonês." },
+    { zh:"叉烧", py:"chāshāo", pt:"Porco assado cantonês", q:"Char siu", d:"Porco marinado em molho adocicado e assado até caramelizar nas pontas, de cor avermelhada." },
+    { zh:"烧鹅", py:"shāo'é", pt:"Ganso assado", q:"Roast goose Cantonese", d:"Ganso com pele laqueada e crocante. O de Songgang, em Shenzhen, é um dos mais conhecidos da região." },
+    { zh:"肠粉", py:"chángfěn", pt:"Rolinho de arroz", q:"Cheung fun", d:"Folhas macias de massa de arroz enroladas com camarão, carne ou ovo, regadas com molho de soja doce." },
+    { zh:"潮汕牛肉火锅", py:"Cháoshàn niúròu huǒguō", pt:"Hotpot de carne de Chaoshan", q:"Chaoshan beef hot pot", d:"Cortes de carne frescos, fatiados na hora e fervidos em caldo leve, com molho de satay." },
+    { zh:"广式粥", py:"Guǎngshì zhōu", pt:"Congee cantonês", q:"Congee Cantonese", d:"Mingau de arroz cozido por horas, servido com carne, ovo ou peixe. Café da manhã reconfortante." }
+  ]},
+  { id:"chengdu", name:"Chengdu", sub:"A pimenta de Sichuan que deixa a boca dormente", dishes:[
+    { zh:"四川火锅", py:"Sìchuān huǒguō", pt:"Hotpot de Sichuan", q:"Sichuan hot pot", d:"Caldo vermelho com pimenta e pimenta-de-sichuan, onde se cozinham carnes, tofu e legumes à mesa." },
+    { zh:"麻婆豆腐", py:"mápó dòufu", pt:"Tofu da vovó Ma", q:"Mapo tofu", d:"Tofu macio em molho de pasta de feijão apimentada, carne moída e pimenta-de-sichuan, a famosa picância dormente." },
+    { zh:"担担面", py:"dàndàn miàn", pt:"Macarrão dandan", q:"Dan dan noodles", d:"Macarrão com molho de pimenta, gergelim, vegetais em conserva e porco moído. Nasceu como comida de vendedor ambulante." },
+    { zh:"宫保鸡丁", py:"gōngbǎo jīdīng", pt:"Frango kung pao", q:"Kung Pao chicken", d:"Cubos de frango salteados com amendoim, pimenta seca e molho agridoce." },
+    { zh:"夫妻肺片", py:"fūqī fèipiàn", pt:"Fatias frias de carne e miúdos", q:"Fuqi feipian", d:"Prato frio de carne bovina fatiada em óleo de pimenta com amendoim e gergelim." },
+    { zh:"回锅肉", py:"huíguō ròu", pt:"Porco cozido duas vezes", q:"Twice cooked pork", d:"Barriga de porco cozida, fatiada e depois salteada com alho-poró e pasta de feijão apimentada." }
+  ]},
+  { id:"chongqing", name:"Chongqing", sub:"Picante forte e muito sebo no caldo", dishes:[
+    { zh:"重庆火锅", py:"Chóngqìng huǒguō", pt:"Hotpot de Chongqing", q:"Chongqing hot pot", d:"Caldo de sebo bovino bem apimentado, com miúdos, pato e legumes, considerado o mais intenso da China." },
+    { zh:"重庆小面", py:"Chóngqìng xiǎomiàn", pt:"Macarrão de Chongqing", q:"Chongqing noodles", d:"Macarrão rápido com molho de pimenta, alho e vinagre, comido no café da manhã pelos moradores." },
+    { zh:"酸辣粉", py:"suānlà fěn", pt:"Macarrão azedo e picante", q:"Suan la fen", d:"Macarrão transparente de batata-doce em caldo ácido e picante, com amendoim e coentro." },
+    { zh:"辣子鸡", py:"làzi jī", pt:"Frango frito com pimenta", q:"La zi ji", d:"Pedacinhos de frango fritos, escondidos numa montanha de pimentas secas. Procura-se o frango entre as pimentas." },
+    { zh:"毛血旺", py:"máoxuèwàng", pt:"Sopa picante de sangue e miúdos", q:"Mao xue wang", d:"Panela fervente de coágulo de sangue, bucho, brotos e carne em caldo vermelho e picante." },
+    { zh:"烤鱼", py:"kǎoyú", pt:"Peixe grelhado em panela", q:"Chongqing grilled fish", d:"Peixe grelhado servido numa travessa com caldo apimentado e legumes. Popular nas ruas de Wanzhou." }
+  ]},
+  { id:"furong", name:"Furong / Zhangjiajie", sub:"Cozinha Tujia e hunanesa, entre montanhas", dishes:[
+    { zh:"芙蓉镇米豆腐", py:"Fúróng zhèn mǐdòufu", pt:"Tofu de arroz de Furong", q:"Mi doufu rice tofu", d:"Cubos macios de arroz moído, cozidos com molho de pimenta. O prato símbolo da vila de Furong." },
+    { zh:"三下锅", py:"sānxiàguō", pt:"Panela de três ingredientes", q:"Sanxiaguo Zhangjiajie", d:"Panela de ferro com carnes, miúdos e legumes cozidos juntos em caldo apimentado, típica do povo Tujia." },
+    { zh:"湘西腊肉", py:"Xiāngxī làròu", pt:"Carne de porco defumada", q:"Hunan cured pork", d:"Carne de porco curada e defumada em fogo de lenha, salteada com pimenta verde e alho." },
+    { zh:"剁椒鱼头", py:"duòjiāo yútóu", pt:"Cabeça de peixe com pimenta", q:"Duo jiao yu tou chopped chili fish head", d:"Cabeça de peixe cozida no vapor sob uma camada de pimenta fermentada picada. Um ícone de Hunan." },
+    { zh:"毛氏红烧肉", py:"Máoshì hóngshāo ròu", pt:"Porco braseado ao estilo Mao", q:"Hunan red braised pork", d:"Barriga de porco braseada com soja e pimenta, mais forte que a versão de Xangai. Dizem que era o prato favorito de Mao." },
+    { zh:"臭豆腐", py:"chòudòufu", pt:"Tofu fedorento frito", q:"Stinky tofu Changsha", d:"Tofu fermentado e frito, com cheiro forte e sabor delicioso. A versão de Changsha é negra e crocante." }
+  ]}
+];
+
+const API = "https://commons.wikimedia.org/w/api.php";
+const strip = s => (s || "").replace(/<[^>]*>/g, "").trim();
+
+async function fetchPhotos(q) {
+  const key = "cn:" + q;
+  try { const c = sessionStorage.getItem(key); if (c) return JSON.parse(c); } catch (e) {}
+  const url = API + "?action=query&format=json&origin=*&generator=search&gsrnamespace=6&gsrlimit=20" +
+    "&gsrsearch=" + encodeURIComponent(q + " filetype:bitmap") +
+    "&prop=imageinfo&iiprop=url|mime|extmetadata&iiurlwidth=420&iiextmetadatafilter=Artist|LicenseShortName";
+  const r = await fetch(url);
+  const j = await r.json();
+  const pages = Object.values((j.query && j.query.pages) || {}).sort((a, b) => a.index - b.index);
+  const out = [];
+  for (const p of pages) {
+    const ii = p.imageinfo && p.imageinfo[0];
+    if (!ii || ii.mime !== "image/jpeg") continue;
+    const m = ii.extmetadata || {};
+    out.push({
+      thumb: ii.thumburl, page: ii.descriptionurl,
+      author: strip(m.Artist && m.Artist.value) || "autor desconhecido",
+      lic: strip(m.LicenseShortName && m.LicenseShortName.value) || ""
+    });
+    if (out.length === 4) break;
+  }
+  try { sessionStorage.setItem(key, JSON.stringify(out)); } catch (e) {}
+  return out;
+}
+
+function el(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) { if (k === "text") e.textContent = v; else e.setAttribute(k, v); }
+  kids.forEach(k => e.append(k));
+  return e;
+}
+
+const app = document.getElementById("app");
+const nav = document.getElementById("nav");
+
+for (const place of PLACES) {
+  nav.append(el("a", { href: "#" + place.id, text: place.name }));
+  const sec = el("section", { class: "city", id: place.id },
+    el("h2", { text: place.name }), el("p", { class: "sub", text: place.sub }));
+  for (const dish of place.dishes) {
+    const photos = el("div", { class: "photos" });
+    for (let i = 0; i < 4; i++) photos.append(el("div", { class: "ph" }));
+    const card = el("div", { class: "dish" },
+      el("h3", { text: dish.pt }, el("small", { text: dish.zh + " · " + dish.py })),
+      el("p", { text: dish.d }), photos);
+    card._dish = dish; card._photos = photos;
+    sec.append(card);
+  }
+  app.append(sec);
+}
+
+const io = new IntersectionObserver(entries => {
+  for (const en of entries) {
+    if (!en.isIntersecting) continue;
+    io.unobserve(en.target);
+    load(en.target);
+  }
+}, { rootMargin: "400px" });
+
+async function load(card) {
+  const box = card._photos;
+  try {
+    const list = await fetchPhotos(card._dish.q);
+    box.replaceChildren();
+    if (!list.length) { box.append(el("p", { class: "note", text: "Nenhuma foto encontrada." })); return; }
+    for (const p of list) {
+      const img = el("img", { src: p.thumb, alt: card._dish.pt, loading: "lazy" });
+      const a = el("a", { href: p.page, target: "_blank", rel: "noopener" }, img);
+      box.append(el("figure", {}, a, el("figcaption", { text: p.author + (p.lic ? " · " + p.lic : ""), title: p.author })));
+    }
+  } catch (e) {
+    box.replaceChildren(el("p", { class: "note", text: "Não consegui carregar as fotos. Verifique a conexão." }));
+  }
+}
+document.querySelectorAll(".dish").forEach(c => io.observe(c));
+</script>
+</body>
+</html>
